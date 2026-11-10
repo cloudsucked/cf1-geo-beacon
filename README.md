@@ -77,10 +77,25 @@ flowchart LR
      2. **Secondary (`ipdeny.com`)**: `https://www.ipdeny.com/ipblocks/data/aggregated/cn-aggregated.zone`
      3. **Tertiary (`mayaxcn/china-ip-list` on GitHub)**: `https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt`
    - Matching packets are accepted and reach the userspace TLS server.
-4. **Rule 4 — Default Drop on TCP 443**:
-   - All other global traffic to `TCP 443` is dropped at the kernel level before the TCP `SYN` is acknowledged.
-5. **Userspace HTTPS Beacon Server (`:443`)**:
-   - Serves the client's public IP address as plain text (`200 OK`) alongside an `X-Cert-SHA256` response header using the persistent TLS certificate from SSM Parameter Store.
+4. **Rule 4 — Default Drop Policy**:
+   - The `nftables` `input` chain uses a default `policy drop`—dropping invalid conntrack states, rate-limiting new TCP 443 connections per source IP (30/min, burst 15), and dropping all other ports and protocols at the kernel level.
+5. **Hardened Userspace HTTPS Beacon Server (`:443`)**:
+   - Accepts **only** `GET /` over TLS 1.2/1.3 and returns **only** the client's public IP address as plain text (`200 OK`) with no server banners or extra metadata.
+
+---
+
+## Multi-Layer Security Hardening
+
+The beacon instance and web server are hardened across the kernel, network, TLS, HTTP parser, and OS process layers:
+
+| Layer | Hardening Controls |
+| :--- | :--- |
+| **Kernel TCP/IP (`sysctl`)** | Enables `tcp_syncookies = 1` (SYN flood defense), strict reverse-path filtering (`rp_filter = 1`), reduced `tcp_synack_retries = 2` & `tcp_fin_timeout = 15`, and disables ICMP redirects and source routing. |
+| **Network Firewall (`nftables`)** | Default `policy drop` on `input`; drops `ct state invalid`; rejects China office IPs with `TCP RST`; enforces per-source-IP connection rate limiting (`30/minute`, burst `15`) before accepting Mainland China CIDRs. |
+| **TLS & Socket Layer** | Enforces **TLS 1.2 & TLS 1.3 only** with AEAD forward-secrecy ciphers (`ECDHE+AESGCM:ECDHE+CHACHA20`), disables TLS compression & renegotiation, caps concurrent connections with a `BoundedSemaphore(32)`, and performs TLS handshakes inside worker threads with a strict **3.0-second socket timeout** (defeating Slowloris and TLS handshake stalls). |
+| **Minimal HTTP Handler** | Custom bounded reader (`max 256 bytes` request line, `max 16` header lines of `1024 bytes`); **never parses headers or reads request bodies**; allows **only `GET /`** (all other methods/paths receive `403 Forbidden` with `Content-Length: 0`); strips `Server`/`Date` banners; forces `Connection: close`, `Content-Security-Policy: default-src 'none'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Cache-Control: no-store`. |
+| **OS & Systemd Sandbox** | Runs as an unprivileged `beacon` system user (`/sbin/nologin`) with read-only `0500`/`0400` permissions on `/opt/webserver`, `AmbientCapabilities=CAP_NET_BIND_SERVICE` only, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `RestrictSUIDSGID=yes`, and `MemoryMax=64M`. |
+| **AWS EC2 Metadata** | Enforces **IMDSv2 (`http_tokens = "required"`)** with hop limit `1`. |
 
 ---
 
@@ -143,7 +158,7 @@ Example output:
 4a7f9b2c1d8e3f0a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a
 ```
 
-*(Alternatively, if you added your IP to `allowed_test_cidrs`, run `curl -ki https://<ELASTIC_IP>` to see both your client IP in the response body and the `X-Cert-SHA256` response header).*
+*(If you added your IP to `allowed_test_cidrs`, you can also verify the endpoint with `curl -k https://<ELASTIC_IP>`, which returns only your public client IP as plain text).*
 
 ---
 

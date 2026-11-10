@@ -24,6 +24,6 @@ output "get_certificate_sha256_command" {
 }
 
 output "curl_test_command" {
-  description = "cURL command to test the HTTPS server from an allowed IP (returns client IP and X-Cert-SHA256 header)."
-  value       = "curl -ki https://${aws_eip.beacon.public_ip}"
+  description = "cURL command to test the HTTPS server from an allowed IP (returns client IP as plain text)."
+  value       = "curl -k https://${aws_eip.beacon.public_ip}"
 }

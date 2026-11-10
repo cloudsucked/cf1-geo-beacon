@@ -226,6 +226,26 @@ resource "aws_launch_template" "beacon" {
               dnf install -y nftables openssl python3 cronie curl
 
               # ------------------------------------------------------------------
+              # 1b. Kernel TCP/IP Stack Hardening (sysctl)
+              # ------------------------------------------------------------------
+              cat << 'SYSCTL_EOF' > /etc/sysctl.d/99-beacon-hardening.conf
+              net.ipv4.tcp_syncookies = 1
+              net.ipv4.tcp_max_syn_backlog = 2048
+              net.ipv4.tcp_synack_retries = 2
+              net.ipv4.tcp_fin_timeout = 15
+              net.ipv4.conf.all.rp_filter = 1
+              net.ipv4.conf.default.rp_filter = 1
+              net.ipv4.conf.all.accept_redirects = 0
+              net.ipv4.conf.default.accept_redirects = 0
+              net.ipv4.conf.all.send_redirects = 0
+              net.ipv4.conf.default.send_redirects = 0
+              net.ipv4.conf.all.accept_source_route = 0
+              net.ipv4.conf.default.accept_source_route = 0
+              net.ipv4.icmp_echo_ignore_broadcasts = 1
+              SYSCTL_EOF
+              sysctl --system
+
+              # ------------------------------------------------------------------
               # 2. Configure Kernel-Level GeoIP Firewall (nftables)
               # ------------------------------------------------------------------
               cat << 'SCRIPT_EOF' > /usr/local/bin/update-geo-firewall.sh
@@ -298,22 +318,25 @@ resource "aws_launch_template" "beacon" {
                 }
 
                 chain input {
-                  type filter hook input priority 0; policy accept;
+                  type filter hook input priority 0; policy drop;
 
                   iifname "lo" accept
+                  ct state invalid drop
                   ct state established,related accept
 
                   # 1. Reject China Office IPs on TCP 443 so office users do NOT trigger the roaming China profile
                   tcp dport 443 ip saddr @china_office_ips reject with tcp reset
 
-                  # 2. Allow explicitly configured test/admin IPs on TCP 443
+                  # 2. Per-source-IP connection rate limit (max 30 new connections/min with burst of 15) to mitigate DoS
+                  tcp dport 443 ct state new meter per_ip_limit { ip saddr limit rate over 30/minute burst 15 packets } drop
+
+                  # 3. Allow explicitly configured test/admin IPs on TCP 443
                   tcp dport 443 ip saddr @allowed_test_ips accept
 
-                  # 3. Allow Mainland China IPs on TCP 443
+                  # 4. Allow Mainland China IPs on TCP 443
                   tcp dport 443 ip saddr @china_mainland_cidrs accept
 
-                  # 4. Drop all other global connections on TCP 443 before TCP/TLS handshake
-                  tcp dport 443 drop
+                  # 5. All other inbound traffic is dropped by default chain policy (policy drop)
                 }
               }
               NFTEOF
@@ -331,6 +354,8 @@ resource "aws_launch_template" "beacon" {
               # ------------------------------------------------------------------
               # 3. Load or Generate Persistent TLS Certificate via SSM Parameter Store
               # ------------------------------------------------------------------
+              id -u beacon &>/dev/null || useradd --system --no-create-home --shell /sbin/nologin beacon
+
               mkdir -p /opt/webserver
               cd /opt/webserver
 
@@ -346,11 +371,8 @@ resource "aws_launch_template" "beacon" {
                 aws ssm put-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/key" --type "SecureString" --value "$(cat /opt/webserver/server.key)" --overwrite
               fi
 
-              chmod 600 /opt/webserver/server.key
-
               CERT_FP_COLONS=$(openssl x509 -in /opt/webserver/server.crt -noout -fingerprint -sha256 | cut -d'=' -f2)
               CERT_FP_HEX=$(echo "$CERT_FP_COLONS" | tr -d ':' | tr '[:upper:]' '[:lower:]')
-              echo "$CERT_FP_HEX" > /opt/webserver/cert-sha256.txt
 
               aws ssm put-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/sha256" --type "String" --value "$CERT_FP_HEX" --overwrite
 
@@ -364,49 +386,154 @@ resource "aws_launch_template" "beacon" {
               } | tee /dev/console
 
               # ------------------------------------------------------------------
-              # 4. Configure HTTPS Web Server Returning Client IP (200 OK)
+              # 4. Configure Hardened HTTPS Server Returning ONLY Client IP (200 OK)
               # ------------------------------------------------------------------
               cat << 'PYEOF' > /opt/webserver/server.py
               import http.server
+              import socketserver
               import ssl
+              import threading
 
-              with open('/opt/webserver/cert-sha256.txt', 'r') as f:
-                  CERT_SHA256 = f.read().strip()
+              # Cap concurrent active connections to prevent memory/FD exhaustion
+              CONN_SEMAPHORE = threading.BoundedSemaphore(32)
 
-              class ClientIPHandler(http.server.BaseHTTPRequestHandler):
-                  def do_GET(self):
-                      client_ip = self.client_address[0]
-                      body = f"{client_ip}\n".encode('utf-8')
-                      self.send_response(200)
-                      self.send_header("Content-Type", "text/plain")
-                      self.send_header("Content-Length", str(len(body)))
-                      self.send_header("X-Cert-SHA256", CERT_SHA256)
-                      self.end_headers()
-                      self.wfile.write(body)
+              class HardenedTLSServer(socketserver.ThreadingTCPServer):
+                  daemon_threads = True
+                  request_queue_size = 64
+                  allow_reuse_address = True
+
+                  def __init__(self, server_address, RequestHandlerClass, ssl_context):
+                      self.ssl_context = ssl_context
+                      super().__init__(server_address, RequestHandlerClass)
+
+                  def process_request(self, request, client_address):
+                      if not CONN_SEMAPHORE.acquire(blocking=False):
+                          self.shutdown_request(request)
+                          return
+                      super().process_request(request, client_address)
+
+                  def process_request_thread(self, request, client_address):
+                      try:
+                          # Enforce strict 3-second timeout before TLS handshake to defeat Slowloris/stalls
+                          request.settimeout(3.0)
+                          with self.ssl_context.wrap_socket(request, server_side=True) as ssl_sock:
+                              self.finish_request(ssl_sock, client_address)
+                      except Exception:
+                          pass
+                      finally:
+                          self.shutdown_request(request)
+                          CONN_SEMAPHORE.release()
+
+              class HardenedIPHandler(http.server.BaseHTTPRequestHandler):
+                  timeout = 3.0
+
+                  def handle_one_request(self):
+                      try:
+                          # Read at most 256 bytes for the request line
+                          raw_requestline = self.rfile.readline(257)
+                          if not raw_requestline or len(raw_requestline) > 256:
+                              self.close_connection = True
+                              return
+
+                          # Drain at most 16 header lines (max 1024 bytes each); never parse or read request bodies
+                          for _ in range(16):
+                              line = self.rfile.readline(1025)
+                              if not line or len(line) > 1024:
+                                  self.close_connection = True
+                                  return
+                              if line in (b'\r\n', b'\n'):
+                                  break
+                          else:
+                              self.close_connection = True
+                              return
+
+                          parts = raw_requestline.decode('ascii', errors='replace').strip().split()
+                          if len(parts) != 3 or parts[0] != 'GET' or parts[1] != '/' or not parts[2].startswith('HTTP/1.'):
+                              self.wfile.write(
+                                  b"HTTP/1.1 403 Forbidden\r\n"
+                                  b"Content-Type: text/plain; charset=utf-8\r\n"
+                                  b"Content-Length: 0\r\n"
+                                  b"Connection: close\r\n"
+                                  b"Cache-Control: no-store\r\n"
+                                  b"X-Content-Type-Options: nosniff\r\n"
+                                  b"X-Frame-Options: DENY\r\n"
+                                  b"Content-Security-Policy: default-src 'none'\r\n\r\n"
+                              )
+                              self.wfile.flush()
+                              self.close_connection = True
+                              return
+
+                          body = f"{self.client_address[0]}\n".encode('ascii')
+                          response = (
+                              b"HTTP/1.1 200 OK\r\n"
+                              b"Content-Type: text/plain; charset=utf-8\r\n"
+                              + f"Content-Length: {len(body)}\r\n".encode('ascii')
+                              + b"Connection: close\r\n"
+                              b"Cache-Control: no-store, no-cache, must-revalidate\r\n"
+                              b"X-Content-Type-Options: nosniff\r\n"
+                              b"X-Frame-Options: DENY\r\n"
+                              b"Content-Security-Policy: default-src 'none'\r\n\r\n"
+                              + body
+                          )
+                          self.wfile.write(response)
+                          self.wfile.flush()
+                      except Exception:
+                          pass
+                      finally:
+                          self.close_connection = True
 
                   def log_message(self, format, *args):
                       pass
 
-              server_address = ('0.0.0.0', 443)
-              httpd = http.server.HTTPServer(server_address, ClientIPHandler)
               ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+              ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
+              ssl_context.options |= (
+                  ssl.OP_NO_COMPRESSION
+                  | getattr(ssl, "OP_NO_RENEGOTIATION", 0)
+                  | getattr(ssl, "OP_CIPHER_SERVER_PREFERENCE", 0)
+              )
+              ssl_context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20")
               ssl_context.load_cert_chain(certfile='/opt/webserver/server.crt', keyfile='/opt/webserver/server.key')
-              httpd.socket = ssl_context.wrap_socket(httpd.socket, server_side=True)
 
+              httpd = HardenedTLSServer(('0.0.0.0', 443), HardenedIPHandler, ssl_context)
               httpd.serve_forever()
               PYEOF
 
+              chown -R beacon:beacon /opt/webserver
+              chmod 500 /opt/webserver
+              chmod 400 /opt/webserver/server.crt /opt/webserver/server.key /opt/webserver/server.py
+
               cat << 'SERVICEEOF' > /etc/systemd/system/ip-server.service
               [Unit]
-              Description=Cloudflare One Managed Network HTTPS Beacon & Client IP Server
+              Description=Hardened Cloudflare One Managed Network HTTPS Beacon
               After=network.target nftables.service
 
               [Service]
               Type=simple
-              User=root
+              User=beacon
+              Group=beacon
               WorkingDirectory=/opt/webserver
-              ExecStart=/usr/bin/python3 /opt/webserver/server.py
+              ExecStart=/usr/bin/python3 -B /opt/webserver/server.py
               Restart=always
+              RestartSec=2
+
+              # Privilege & Capabilities Lockdown
+              AmbientCapabilities=CAP_NET_BIND_SERVICE
+              CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+              NoNewPrivileges=yes
+
+              # Filesystem & Kernel Sandboxing
+              ProtectSystem=strict
+              ProtectHome=yes
+              PrivateTmp=yes
+              PrivateDevices=yes
+              ProtectKernelTunables=yes
+              ProtectKernelModules=yes
+              ProtectControlGroups=yes
+              RestrictSUIDSGID=yes
+              RestrictNamespaces=yes
+              LockPersonality=yes
+              MemoryMax=64M
 
               [Install]
               WantedBy=multi-user.target
