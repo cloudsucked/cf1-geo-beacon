@@ -1,6 +1,6 @@
 # Cloudflare One Managed Network TLS Beacon for Mainland China Roaming
 
-A ultra-low-cost (~$3.80/month) AWS Terraform solution that deploys a **Layer-3/4 Geo-Filtered TLS Beacon** on an EC2 `t4g.nano` instance. It enables **Cloudflare One (WARP)** clients to automatically detect when a user is roaming in **Mainland China** (while excluding corporate China office egress IPs) and dynamically switch WARP Device Profiles.
+An ultra-low-cost (~$8.09/month), **Multi-AZ High Availability** AWS Terraform solution that deploys a **Layer-3/4 Geo-Filtered TLS Beacon** in a self-healing **Auto Scaling Group (`min=1, max=1`)** using a `t4g.nano` instance. It enables **Cloudflare One (WARP)** clients to automatically detect when a user is roaming in **Mainland China** (while excluding corporate China office egress IPs) and dynamically switch WARP Device Profiles.
 
 ---
 
@@ -25,9 +25,11 @@ Cloudflare WARP's **Managed Networks** detection works by probing a configured `
 
 ## Architectural Design
 
-To prevent non-China clients (and China office clients) from completing the TLS handshake without paying for AWS Network Firewall, this architecture performs **stateful Layer-3/4 Geo-IP filtering directly in the Linux kernel (`nftables`)** on a single `t4g.nano` EC2 instance.
-
-Because the EC2 instance receives packets directly on its public Elastic IP without intermediate NAT or proxies, the Linux kernel inspects the true client source IP in the `prerouting`/`input` hook **before the TCP 3-way handshake or TLS handshake ever reaches userspace**.
+To prevent non-China clients (and China office clients) from completing the TLS handshake without paying for AWS Network Firewall or a Network Load Balancer, this architecture combines:
+1. **Linux Kernel `nftables` Stateful Layer-3/4 Geo-IP Filtering** on a `t4g.nano` instance (inspecting the true client source IP before the TCP or TLS handshake ever reaches userspace).
+2. **Multi-AZ Self-Healing Auto Scaling Group (`min = 1, max = 1`)** spanning 3 Availability Zones (`2a`, `2b`, `2c`) for **$0.00 extra cost**:
+   - **Automatic Elastic IP Reassociation**: On boot, the active instance uses an IAM Instance Profile (`ec2:AssociateAddress`) to bind the static Elastic IP to itself in whichever AZ it launches.
+   - **Persistent TLS Certificate via AWS SSM Parameter Store (Standard Tier)**: On initial deployment, a 10-year X.509 certificate, private key (`SecureString`), and SHA-256 thumbprint are generated and stored in SSM Parameter Store (`/<project_name>/tls/*`). If the ASG replaces an unhealthy instance or fails over to another AZ, the new instance automatically loads the existing certificate and key from SSM—ensuring the **SHA-256 thumbprint configured in Cloudflare One never changes**.
 
 ```mermaid
 flowchart LR
@@ -37,21 +39,25 @@ flowchart LR
         C3["User in Australia / RoW"]
     end
 
-    subgraph AWS["AWS VPC"]
-        EIP["Elastic IP<br/>(TCP 443)"]
-        SG["EC2 Security Group<br/>(Allow TCP 443)"]
+    subgraph AWS["AWS VPC (Multi-AZ: AZ-1, AZ-2, AZ-3)"]
+        EIP["Static Elastic IP<br/>(TCP 443)"]
+        SSM[("AWS SSM Parameter Store<br/>Persistent TLS Cert & Key")]
         
-        subgraph EC2["EC2 t4g.nano (Amazon Linux 2023)"]
-            subgraph Kernel["Linux Kernel Network Layer (nftables)"]
-                R1{"1. Source IP in<br/>@china_office_ips?"}
-                R2{"2. Source IP in<br/>@china_mainland_cidrs?"}
+        subgraph ASG["Auto Scaling Group (min=1, max=1 across 3 AZs)"]
+            subgraph EC2["Active EC2 t4g.nano (Amazon Linux 2023)"]
+                subgraph Kernel["Linux Kernel Network Layer (nftables)"]
+                    R1{"1. Source IP in<br/>@china_office_ips?"}
+                    R2{"2. Source IP in<br/>@china_mainland_cidrs?"}
+                end
+                
+                TLS["Userspace TLS Server (:443)<br/>(Python HTTPS with Beacon Cert)"]
             end
-            
-            TLS["Userspace TLS Server (:443)<br/>(Python HTTPS with Beacon Cert)"]
         end
     end
 
-    C1 & C2 & C3 -->|"Managed Network Probe"| EIP --> SG --> R1
+    C1 & C2 & C3 -->|"Managed Network Probe"| EIP --> R1
+    EC2 -.->|"1. Boot: Associate EIP"| EIP
+    EC2 -.->|"2. Boot: Load/Save Cert"| SSM
     R1 -->|"Yes"| DROP1["REJECT (TCP RST)<br/>(Probe Fails Immediately)"]
     R1 -->|"No"| R2
     R2 -->|"No"| DROP2["DROP<br/>(Probe Fails)"]
@@ -70,7 +76,7 @@ flowchart LR
 4. **Rule 4 — Default Drop on TCP 443**:
    - All other global traffic to `TCP 443` is dropped at the kernel level before the TCP `SYN` is acknowledged.
 5. **Userspace HTTPS Beacon Server (`:443`)**:
-   - Generates a 10-year self-signed X.509 certificate on boot, logs the **SHA-256 thumbprint** to the EC2 system console, and serves the client's public IP address as plain text (`200 OK`) alongside an `X-Cert-SHA256` response header.
+   - Serves the client's public IP address as plain text (`200 OK`) alongside an `X-Cert-SHA256` response header using the persistent TLS certificate from SSM Parameter Store.
 
 ---
 
@@ -80,7 +86,9 @@ flowchart LR
 | :--- | :--- | :--- |
 | **Amazon EC2** | `t4g.nano` (2 vCPU, 0.5 GB RAM, Graviton2, On-Demand) | ~$3.80 |
 | **Amazon EBS** | 8 GB `gp3` root volume | ~$0.64 |
-| **Elastic IP** | 1x Static IPv4 (attached to running instance) | ~$3.65 |
+| **Elastic IP** | 1x Static IPv4 (attached to active ASG instance) | ~$3.65 |
+| **Auto Scaling Group & Multi-AZ Subnets** | `min=1, max=1` across 3 Availability Zones | $0.00 |
+| **AWS SSM Parameter Store** | 3x Standard Parameters (`cert`, `key`, `sha256`) | $0.00 |
 | **Linux `nftables`** | Kernel L3/L4 Geo-Firewall + Daily CIDR Cron | $0.00 |
 | **Total** | | **~$8.09 / month** *(vs. ~$290+/mo with AWS Network Firewall)* |
 
@@ -118,9 +126,9 @@ terraform plan
 terraform apply
 ```
 
-### 3. Retrieve the TLS Certificate SHA-256 Thumbprint
+### 3. Retrieve the Persistent TLS Certificate SHA-256 Thumbprint
 
-Wait ~60 seconds after instance creation for `cloud-init` to complete, then run the command provided in the `get_certificate_sha256_command` Terraform output:
+Wait ~60 seconds after the ASG launches the first instance for `cloud-init` to complete, then run the command provided in the `get_certificate_sha256_command` Terraform output to fetch the 64-character hex thumbprint from SSM Parameter Store:
 
 ```bash
 $(terraform output -raw get_certificate_sha256_command)
@@ -128,11 +136,7 @@ $(terraform output -raw get_certificate_sha256_command)
 
 Example output:
 ```text
-==================================================================
-CLOUDFLARE ONE MANAGED NETWORK TLS BEACON READY
-Certificate SHA-256 (Hex):    4a7f9b2c1d8e3f0a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a
-Certificate SHA-256 (Colons): 4A:7F:9B:2C:1D:8E:3F:0A:5B:6C:7D:8E:9F:0A:1B:2C:3D:4E:5F:6A:7B:8C:9D:0E:1F:2A:3B:4C:5D:6E:7F:8A
-==================================================================
+4a7f9b2c1d8e3f0a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a
 ```
 
 *(Alternatively, if you added your IP to `allowed_test_cidrs`, run `curl -ki https://<ELASTIC_IP>` to see both your client IP in the response body and the `X-Cert-SHA256` response header).*
@@ -145,7 +149,7 @@ Certificate SHA-256 (Colons): 4A:7F:9B:2C:1D:8E:3F:0A:5B:6C:7D:8E:9F:0A:1B:2C:3D
    - In the [Cloudflare One Dashboard](https://one.dash.cloudflare.com/), navigate to **Settings** > **WARP Client** > **Managed networks** > **Add new**.
    - **Name**: `China-Roaming-Beacon`
    - **Host and Port**: Enter the value of `terraform output -raw cloudflare_managed_network_endpoint` (e.g., `<ELASTIC_IP>:443`).
-   - **TLS Cert SHA-256**: Enter the 64-character hex string from `Certificate SHA-256 (Hex)`.
+   - **TLS Cert SHA-256**: Enter the 64-character hex string returned by `get_certificate_sha256_command`.
 
 2. **Ensure the Beacon IP Bypasses the WARP Tunnel**:
    - WARP performs Managed Network probes over the local physical interface, but as a best practice, ensure `<ELASTIC_IP>/32` is excluded in your Split Tunnel configuration so traffic to the beacon never hairpins through a Cloudflare Gateway egress IP.

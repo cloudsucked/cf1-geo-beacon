@@ -17,8 +17,10 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
+data "aws_caller_identity" "current" {}
+
 # ----------------------------------------------------------------------
-# VPC and Networking
+# VPC and Multi-AZ Public Subnets
 # ----------------------------------------------------------------------
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -39,12 +41,14 @@ resource "aws_internet_gateway" "igw" {
 }
 
 resource "aws_subnet" "public" {
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.public_subnet_cidr
-  availability_zone = data.aws_availability_zones.available.names[0]
+  count                   = length(var.public_subnet_cidrs)
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = data.aws_availability_zones.available.names[count.index % length(data.aws_availability_zones.available.names)]
+  map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project_name}-public-subnet"
+    Name = "${var.project_name}-public-subnet-${count.index + 1}"
   }
 }
 
@@ -62,8 +66,71 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  subnet_id      = aws_subnet.public.id
+  count          = length(aws_subnet.public)
+  subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
+}
+
+# ----------------------------------------------------------------------
+# Static Elastic IP (Automatically Reassociated on ASG Instance Boot)
+# ----------------------------------------------------------------------
+resource "aws_eip" "beacon" {
+  domain = "vpc"
+
+  tags = {
+    Name = "${var.project_name}-eip"
+  }
+}
+
+# ----------------------------------------------------------------------
+# IAM Role & Instance Profile (EIP Reassociation + SSM Cert Persistence)
+# ----------------------------------------------------------------------
+resource "aws_iam_role" "beacon" {
+  name = "${var.project_name}-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "beacon" {
+  name = "${var.project_name}-ec2-policy"
+  role = aws_iam_role.beacon.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowElasticIPReassociation"
+        Effect   = "Allow"
+        Action   = ["ec2:AssociateAddress"]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowBeaconTLSParameterStore"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:PutParameter"
+        ]
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/${var.project_name}/tls/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "beacon" {
+  name = "${var.project_name}-instance-profile"
+  role = aws_iam_role.beacon.name
 }
 
 # ----------------------------------------------------------------------
@@ -83,7 +150,7 @@ resource "aws_security_group" "beacon" {
   }
 
   egress {
-    description = "Allow all outbound traffic (for package updates and daily China CIDR list sync)"
+    description = "Allow all outbound traffic (AWS APIs, package updates, daily China CIDR sync)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -96,7 +163,7 @@ resource "aws_security_group" "beacon" {
 }
 
 # ----------------------------------------------------------------------
-# EC2 Instance (t4g.nano on Amazon Linux 2023 ARM64)
+# Launch Template & Multi-AZ Auto Scaling Group (min=1, max=1)
 # ----------------------------------------------------------------------
 data "aws_ami" "al2023_arm64" {
   most_recent = true
@@ -118,22 +185,48 @@ locals {
   test_elements   = length(var.allowed_test_cidrs) > 0 ? "elements = { ${join(", ", var.allowed_test_cidrs)} }" : ""
 }
 
-resource "aws_instance" "beacon" {
-  ami                         = data.aws_ami.al2023_arm64.id
-  instance_type               = var.instance_type
-  subnet_id                   = aws_subnet.public.id
-  vpc_security_group_ids      = [aws_security_group.beacon.id]
-  user_data_replace_on_change = true
+resource "aws_launch_template" "beacon" {
+  name_prefix   = "${var.project_name}-lt-"
+  image_id      = data.aws_ami.al2023_arm64.id
+  instance_type = var.instance_type
 
-  user_data = <<-EOF
+  iam_instance_profile {
+    arn = aws_iam_instance_profile.beacon.arn
+  }
+
+  vpc_security_group_ids = [aws_security_group.beacon.id]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
+  user_data = base64encode(<<-EOF
               #!/bin/bash
               set -euo pipefail
+
+              AWS_REGION="${var.aws_region}"
+              EIP_ALLOC_ID="${aws_eip.beacon.allocation_id}"
+              SSM_PREFIX="/${var.project_name}/tls"
+
+              # ------------------------------------------------------------------
+              # 1. Reassociate Static Elastic IP to This Instance
+              # ------------------------------------------------------------------
+              IMDS_TOKEN=$(curl -fsSL -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+              INSTANCE_ID=$(curl -fsSL -H "X-aws-ec2-metadata-token: $IMDS_TOKEN" "http://169.254.169.254/latest/meta-data/instance-id")
+
+              aws ec2 associate-address \
+                --region "$AWS_REGION" \
+                --instance-id "$INSTANCE_ID" \
+                --allocation-id "$EIP_ALLOC_ID" \
+                --allow-reassociation
 
               dnf update -y
               dnf install -y nftables openssl python3 cronie curl
 
               # ------------------------------------------------------------------
-              # 1. Configure Kernel-Level GeoIP Firewall (nftables)
+              # 2. Configure Kernel-Level GeoIP Firewall (nftables)
               # ------------------------------------------------------------------
               cat << 'SCRIPT_EOF' > /usr/local/bin/update-geo-firewall.sh
               #!/bin/bash
@@ -215,28 +308,42 @@ resource "aws_instance" "beacon" {
               systemctl enable --now crond
 
               # ------------------------------------------------------------------
-              # 2. Generate Self-Signed TLS Beacon Certificate (10-Year Validity)
+              # 3. Load or Generate Persistent TLS Certificate via SSM Parameter Store
               # ------------------------------------------------------------------
               mkdir -p /opt/webserver
               cd /opt/webserver
 
-              openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 3650 -nodes \
-                -subj "/C=AU/ST=NSW/L=Sydney/O=CloudflareOneBeacon/CN=china-roaming-beacon.internal"
+              if aws ssm get-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/cert" --query "Parameter.Value" --output text > /opt/webserver/server.crt 2>/dev/null && \
+                 aws ssm get-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/key" --with-decryption --query "Parameter.Value" --output text > /opt/webserver/server.key 2>/dev/null; then
+                echo "Loaded existing TLS certificate and private key from SSM Parameter Store"
+              else
+                echo "Generating new 10-year self-signed TLS beacon certificate..."
+                openssl req -x509 -newkey rsa:2048 -keyout /opt/webserver/server.key -out /opt/webserver/server.crt -days 3650 -nodes \
+                  -subj "/C=AU/ST=NSW/L=Sydney/O=CloudflareOneBeacon/CN=china-roaming-beacon.internal"
+
+                aws ssm put-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/cert" --type "String" --value "$(cat /opt/webserver/server.crt)" --overwrite
+                aws ssm put-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/key" --type "SecureString" --value "$(cat /opt/webserver/server.key)" --overwrite
+              fi
+
+              chmod 600 /opt/webserver/server.key
 
               CERT_FP_COLONS=$(openssl x509 -in /opt/webserver/server.crt -noout -fingerprint -sha256 | cut -d'=' -f2)
               CERT_FP_HEX=$(echo "$CERT_FP_COLONS" | tr -d ':' | tr '[:upper:]' '[:lower:]')
               echo "$CERT_FP_HEX" > /opt/webserver/cert-sha256.txt
 
+              aws ssm put-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/sha256" --type "String" --value "$CERT_FP_HEX" --overwrite
+
               {
                 echo "=================================================================="
                 echo "CLOUDFLARE ONE MANAGED NETWORK TLS BEACON READY"
+                echo "Instance ID:                  $INSTANCE_ID"
                 echo "Certificate SHA-256 (Hex):    $CERT_FP_HEX"
                 echo "Certificate SHA-256 (Colons): $CERT_FP_COLONS"
                 echo "=================================================================="
               } | tee /dev/console
 
               # ------------------------------------------------------------------
-              # 3. Configure HTTPS Web Server Returning Client IP (200 OK)
+              # 4. Configure HTTPS Web Server Returning Client IP (200 OK)
               # ------------------------------------------------------------------
               cat << 'PYEOF' > /opt/webserver/server.py
               import http.server
@@ -287,18 +394,36 @@ resource "aws_instance" "beacon" {
               systemctl daemon-reload
               systemctl enable --now ip-server.service
               EOF
+  )
 
-  tags = {
-    Name = "${var.project_name}-ec2"
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.project_name}-ec2"
+    }
   }
 }
 
-# Allocate and associate a static Elastic IP with the EC2 instance
-resource "aws_eip" "beacon" {
-  instance = aws_instance.beacon.id
-  domain   = "vpc"
+resource "aws_autoscaling_group" "beacon" {
+  name                = "${var.project_name}-asg"
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
+  vpc_zone_identifier = aws_subnet.public[*].id
+  health_check_type   = "EC2"
 
-  tags = {
-    Name = "${var.project_name}-eip"
+  launch_template {
+    id      = aws_launch_template.beacon.id
+    version = "$Latest"
+  }
+
+  instance_refresh {
+    strategy = "Rolling"
+  }
+
+  tag {
+    key                 = "Name"
+    value               = "${var.project_name}-ec2"
+    propagate_at_launch = true
   }
 }

@@ -1,15 +1,15 @@
-output "instance_id" {
-  description = "The ID of the EC2 beacon instance."
-  value       = aws_instance.beacon.id
+output "autoscaling_group_name" {
+  description = "Name of the Multi-AZ Auto Scaling Group managing the beacon instance."
+  value       = aws_autoscaling_group.beacon.name
 }
 
 output "instance_type" {
-  description = "The EC2 instance type deployed."
-  value       = aws_instance.beacon.instance_type
+  description = "The EC2 instance type configured in the Launch Template."
+  value       = var.instance_type
 }
 
 output "elastic_ip" {
-  description = "Static public IPv4 address of the beacon server."
+  description = "Static public IPv4 address automatically associated with the active ASG instance."
   value       = aws_eip.beacon.public_ip
 }
 
@@ -19,8 +19,8 @@ output "cloudflare_managed_network_endpoint" {
 }
 
 output "get_certificate_sha256_command" {
-  description = "AWS CLI command to retrieve the generated TLS certificate SHA-256 thumbprint from EC2 console output (works from anywhere without needing an allowed IP)."
-  value       = "aws ec2 get-console-output --region ${var.aws_region} --instance-id ${aws_instance.beacon.id} --output text | grep -A 4 'CLOUDFLARE ONE MANAGED NETWORK TLS BEACON READY'"
+  description = "AWS CLI command to retrieve the persistent TLS certificate SHA-256 hex thumbprint from SSM Parameter Store."
+  value       = "aws ssm get-parameter --region ${var.aws_region} --name '/${var.project_name}/tls/sha256' --query 'Parameter.Value' --output text"
 }
 
 output "curl_test_command" {
