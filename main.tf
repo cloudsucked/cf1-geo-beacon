@@ -222,8 +222,7 @@ resource "aws_launch_template" "beacon" {
                 --allocation-id "$EIP_ALLOC_ID" \
                 --allow-reassociation
 
-              dnf update -y
-              dnf install -y nftables openssl python3 cronie curl
+              dnf install -y nftables openssl python3 cronie
 
               # ------------------------------------------------------------------
               # 1b. Kernel TCP/IP Stack Hardening (sysctl)
@@ -562,7 +561,7 @@ resource "aws_autoscaling_group" "beacon" {
 
   launch_template {
     id      = aws_launch_template.beacon.id
-    version = "$Latest"
+    version = aws_launch_template.beacon.latest_version
   }
 
   instance_refresh {

@@ -29,9 +29,9 @@ variable "public_subnet_cidrs" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type (t4g.nano is the lowest-cost on-demand Graviton2 instance)."
+  description = "EC2 instance type (t4g.micro is Free Tier eligible and the lowest-cost Graviton2 instance available on Free/Paid plans)."
   type        = string
-  default     = "t4g.nano"
+  default     = "t4g.micro"
 }
 
 variable "china_office_cidrs" {

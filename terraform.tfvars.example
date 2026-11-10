@@ -4,8 +4,8 @@ aws_region = "ap-southeast-2"
 # Prefix for resource names
 project_name = "cf-china-beacon"
 
-# Cheapest Graviton2 instance (~$3.80 USD/month on-demand)
-instance_type = "t4g.nano"
+# Free Tier eligible Graviton2 ARM64 instance
+instance_type = "t4g.micro"
 
 # Public IPv4 CIDRs of your China Office(s) to EXCLUDE.
 # Connections from these IPs on TCP 443 are rejected with TCP RST so office users
