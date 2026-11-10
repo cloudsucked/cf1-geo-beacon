@@ -1,6 +1,6 @@
 # Cloudflare One Managed Network TLS Beacon for Mainland China Roaming
 
-An ultra-low-cost (~$8.09/month), **Multi-AZ High Availability** AWS Terraform solution that deploys a **Layer-3/4 Geo-Filtered TLS Beacon** in a self-healing **Auto Scaling Group (`min=1, max=1`)** using a `t4g.nano` instance. It enables **Cloudflare One (WARP)** clients to automatically detect when a user is roaming in **Mainland China** (while excluding corporate China office egress IPs) and dynamically switch WARP Device Profiles.
+An ultra-low-cost (**Free Tier eligible**, or ~$8.09/month with `t4g.nano`), **Multi-AZ High Availability** AWS Terraform solution that deploys a **Layer-3/4 Geo-Filtered TLS Beacon** in a self-healing **Auto Scaling Group (`min=1, max=1`)** using a `t4g.micro` instance. It enables **Cloudflare One (WARP)** clients to automatically detect when a user is roaming in **Mainland China** (while excluding corporate China office egress IPs) and dynamically switch WARP Device Profiles.
 
 ---
 
@@ -26,7 +26,7 @@ Cloudflare WARP's **Managed Networks** detection works by probing a configured `
 ## Architectural Design
 
 To prevent non-China clients (and China office clients) from completing the TLS handshake without paying for AWS Network Firewall or a Network Load Balancer, this architecture combines:
-1. **Linux Kernel `nftables` Stateful Layer-3/4 Geo-IP Filtering** on a `t4g.nano` instance (inspecting the true client source IP before the TCP or TLS handshake ever reaches userspace).
+1. **Linux Kernel `nftables` Stateful Layer-3/4 Geo-IP Filtering** on a `t4g.micro` instance (inspecting the true client source IP before the TCP or TLS handshake ever reaches userspace).
 2. **Multi-AZ Self-Healing Auto Scaling Group (`min = 1, max = 1`)** spanning 3 Availability Zones (`2a`, `2b`, `2c`) for **$0.00 extra cost**:
    - **Automatic Elastic IP Reassociation**: On boot, the active instance uses an IAM Instance Profile (`ec2:AssociateAddress`) to bind the static Elastic IP to itself in whichever AZ it launches.
    - **Persistent TLS Certificate via AWS SSM Parameter Store (Standard Tier)**: On initial deployment, a 10-year X.509 certificate, private key (`SecureString`), and SHA-256 thumbprint are generated and stored in SSM Parameter Store (`/<project_name>/tls/*`). If the ASG replaces an unhealthy instance or fails over to another AZ, the new instance automatically loads the existing certificate and key from SSM—ensuring the **SHA-256 thumbprint configured in Cloudflare One never changes**.
@@ -71,15 +71,17 @@ The beacon instance and web server are hardened across the kernel, network, TLS,
 
 ## Cost Breakdown
 
-| Resource | Specification | Estimated Monthly Cost (USD) |
-| :--- | :--- | :--- |
-| **Amazon EC2** | `t4g.nano` (2 vCPU, 0.5 GB RAM, Graviton2, On-Demand) | ~$3.80 |
-| **Amazon EBS** | 8 GB `gp3` root volume | ~$0.64 |
-| **Elastic IP** | 1x Static IPv4 (attached to active ASG instance) | ~$3.65 |
-| **Auto Scaling Group & Multi-AZ Subnets** | `min=1, max=1` across 3 Availability Zones | $0.00 |
-| **AWS SSM Parameter Store** | 3x Standard Parameters (`cert`, `key`, `sha256`) | $0.00 |
-| **Linux `nftables`** | Kernel L3/L4 Geo-Firewall + Daily CIDR Cron | $0.00 |
-| **Total** | | **~$8.09 / month** *(vs. ~$290+/mo with AWS Network Firewall)* |
+> **Note on Instance Size (`t4g.micro` vs `t4g.nano`):** The template defaults to **`t4g.micro`** so that it deploys out-of-the-box on **AWS Free Tier** accounts/projects (where non-Free-Tier instance types like `t4g.nano` are restricted). On paid AWS accounts outside the Free Tier, you can optionally set `instance_type = "t4g.nano"` in `terraform.tfvars` to halve the compute cost (~$3.80/month).
+
+| Resource | Specification | AWS Free Tier | On-Demand Paid (after Free Tier) |
+| :--- | :--- | :--- | :--- |
+| **Amazon EC2** | `t4g.micro` (2 vCPU, 1 GB RAM, Graviton2, default for Free Tier) *(or `t4g.nano`)* | **$0.00** *(Free Tier / Credits)* | ~$7.59 / mo *(or ~$3.80 with `t4g.nano`)* |
+| **Amazon EBS** | 8 GB `gp3` root volume | **$0.00** *(Free Tier 30 GB)* | ~$0.64 / mo |
+| **Elastic IP** | 1x Static IPv4 (attached to active ASG instance) | **$0.00** *(Free Tier / Credits)* | ~$3.65 / mo |
+| **Auto Scaling Group & Multi-AZ Subnets** | `min=1, max=1` across 3 Availability Zones | **$0.00** | **$0.00** |
+| **AWS SSM Parameter Store** | 3x Standard Parameters (`cert`, `key`, `sha256`) | **$0.00** | **$0.00** |
+| **Linux `nftables`** | Kernel L3/L4 Geo-Firewall + Daily CIDR Cron | **$0.00** | **$0.00** |
+| **Total** | | **$0.00 / month** | **~$8.09 – $11.88 / month** *(vs. ~$290+/mo with AWS Network Firewall)* |
 
 ---
 
