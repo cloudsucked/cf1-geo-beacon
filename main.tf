@@ -232,15 +232,36 @@ resource "aws_launch_template" "beacon" {
               #!/bin/bash
               set -euo pipefail
 
+              TMP_RAW=$(mktemp)
               TMP_CIDRS=$(mktemp)
-              trap 'rm -f "$TMP_CIDRS"' EXIT
+              trap 'rm -f "$TMP_RAW" "$TMP_CIDRS"' EXIT
 
-              if curl -fsSL --connect-timeout 10 --max-time 30 "https://www.ipdeny.com/ipblocks/data/aggregated/cn-aggregated.zone" -o "$TMP_CIDRS"; then
-                echo "Fetched Mainland China CIDRs from ipdeny.com"
-              elif curl -fsSL --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt" -o "$TMP_CIDRS"; then
-                echo "Fetched Mainland China CIDRs from GitHub fallback"
+              fetch_apnic() {
+                curl -fsSL --connect-timeout 15 --max-time 60 "https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest" -o "$TMP_RAW" && \
+                python3 - "$TMP_RAW" > "$TMP_CIDRS" << 'PY_APNIC'
+              import ipaddress, sys
+              nets = []
+              with open(sys.argv[1], 'r', encoding='utf-8', errors='ignore') as f:
+                  for line in f:
+                      parts = line.split('|')
+                      if len(parts) >= 5 and parts[1] == 'CN' and parts[2] == 'ipv4':
+                          start = ipaddress.IPv4Address(parts[3])
+                          end = start + int(parts[4]) - 1
+                          nets.extend(ipaddress.summarize_address_range(start, end))
+              for net in ipaddress.collapse_addresses(nets):
+                  print(net)
+              PY_APNIC
+                [ -s "$TMP_CIDRS" ]
+              }
+
+              if fetch_apnic; then
+                echo "Fetched Mainland China CIDRs from primary source: APNIC (ftp.apnic.net)"
+              elif curl -fsSL --connect-timeout 10 --max-time 30 "https://www.ipdeny.com/ipblocks/data/aggregated/cn-aggregated.zone" -o "$TMP_CIDRS" && [ -s "$TMP_CIDRS" ]; then
+                echo "Fetched Mainland China CIDRs from secondary source: ipdeny.com"
+              elif curl -fsSL --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt" -o "$TMP_CIDRS" && [ -s "$TMP_CIDRS" ]; then
+                echo "Fetched Mainland China CIDRs from tertiary source: GitHub (mayaxcn/china-ip-list)"
               else
-                echo "ERROR: Failed to download China CIDR list" >&2
+                echo "ERROR: All China CIDR sources (APNIC, ipdeny, GitHub) failed" >&2
                 exit 1
               fi
 

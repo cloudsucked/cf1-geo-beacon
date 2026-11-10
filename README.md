@@ -72,7 +72,11 @@ flowchart LR
 2. **Rule 2 — Allow Optional Admin Test IPs (`@allowed_test_ips`)**:
    - Any packet matching `allowed_test_cidrs` is permitted through for administrative testing outside China.
 3. **Rule 3 — Allow Mainland China CIDRs (`@china_mainland_cidrs`)**:
-   - An automated script (`/usr/local/bin/update-geo-firewall.sh`, run at boot and daily via `cron.daily`) fetches the aggregated Mainland China IPv4 CIDR blocks and loads them atomically into an `nftables` interval set. Matching packets are accepted and reach the userspace TLS server.
+   - An automated script (`/usr/local/bin/update-geo-firewall.sh`, run at boot and daily via `cron.daily`) fetches Mainland China (`CN`) IPv4 CIDR allocations using a 3-tier fallback hierarchy and loads them atomically into an `nftables` interval set:
+     1. **Primary (APNIC Official Registry)**: `https://ftp.apnic.net/apnic/stats/apnic/delegated-apnic-latest` (parsed and aggregated in-memory via Python's standard `ipaddress` library).
+     2. **Secondary (`ipdeny.com`)**: `https://www.ipdeny.com/ipblocks/data/aggregated/cn-aggregated.zone`
+     3. **Tertiary (`mayaxcn/china-ip-list` on GitHub)**: `https://raw.githubusercontent.com/mayaxcn/china-ip-list/master/chnroute.txt`
+   - Matching packets are accepted and reach the userspace TLS server.
 4. **Rule 4 — Default Drop on TCP 443**:
    - All other global traffic to `TCP 443` is dropped at the kernel level before the TCP `SYN` is acknowledged.
 5. **Userspace HTTPS Beacon Server (`:443`)**:
