@@ -31,39 +31,9 @@ To prevent non-China clients (and China office clients) from completing the TLS 
    - **Automatic Elastic IP Reassociation**: On boot, the active instance uses an IAM Instance Profile (`ec2:AssociateAddress`) to bind the static Elastic IP to itself in whichever AZ it launches.
    - **Persistent TLS Certificate via AWS SSM Parameter Store (Standard Tier)**: On initial deployment, a 10-year X.509 certificate, private key (`SecureString`), and SHA-256 thumbprint are generated and stored in SSM Parameter Store (`/<project_name>/tls/*`). If the ASG replaces an unhealthy instance or fails over to another AZ, the new instance automatically loads the existing certificate and key from SSM—ensuring the **SHA-256 thumbprint configured in Cloudflare One never changes**.
 
-```mermaid
-flowchart LR
-    subgraph Clients["WARP Clients (Laptops)"]
-        C1["User in Mainland China<br/>(Roaming)"]
-        C2["User in China Office<br/>(Office Egress IP)"]
-        C3["User in Australia / RoW"]
-    end
+![Cloudflare One Managed Network Geo-Beacon Architecture](./architecture.drawio.svg)
 
-    subgraph AWS["AWS VPC (Multi-AZ: AZ-1, AZ-2, AZ-3)"]
-        EIP["Static Elastic IP<br/>(TCP 443)"]
-        SSM[("AWS SSM Parameter Store<br/>Persistent TLS Cert & Key")]
-        
-        subgraph ASG["Auto Scaling Group (min=1, max=1 across 3 AZs)"]
-            subgraph EC2["Active EC2 t4g.nano (Amazon Linux 2023)"]
-                subgraph Kernel["Linux Kernel Network Layer (nftables)"]
-                    R1{"1. Source IP in<br/>@china_office_ips?"}
-                    R2{"2. Source IP in<br/>@china_mainland_cidrs?"}
-                end
-                
-                TLS["Userspace TLS Server (:443)<br/>(Python HTTPS with Beacon Cert)"]
-            end
-        end
-    end
-
-    C1 & C2 & C3 -->|"Managed Network Probe"| EIP --> R1
-    EC2 -.->|"1. Boot: Associate EIP"| EIP
-    EC2 -.->|"2. Boot: Load/Save Cert"| SSM
-    R1 -->|"Yes"| DROP1["REJECT (TCP RST)<br/>(Probe Fails Immediately)"]
-    R1 -->|"No"| R2
-    R2 -->|"No"| DROP2["DROP<br/>(Probe Fails)"]
-    R2 -->|"Yes"| TLS
-    TLS -->|"Presents SHA-256 Cert"| MATCH["TLS Handshake Succeeds<br/>(Switches to China WARP Profile)"]
-```
+*(Tip: [`architecture.drawio.svg`](./architecture.drawio.svg) is both a native vector SVG and an editable Draw.io diagram—open it in [app.diagrams.net](https://app.diagrams.net/) or the VS Code Draw.io extension to customize shapes and connectors).*
 
 ### How Packet Evaluation Works
 

@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 780" width="100%" height="100%" content="&lt;mxfile host=&quot;app.diagrams.net&quot; type=&quot;device&quot;&gt;&lt;diagram id=&quot;cf1-geo-beacon&quot; name=&quot;Cloudflare One China Roaming TLS Beacon&quot;&gt;&lt;mxGraphModel dx=&quot;1240&quot; dy=&quot;780&quot; grid=&quot;1&quot; gridSize=&quot;10&quot; guides=&quot;1&quot; tooltips=&quot;1&quot; connect=&quot;1&quot; arrows=&quot;1&quot; fold=&quot;1&quot; page=&quot;1&quot; pageScale=&quot;1&quot; pageWidth=&quot;1240&quot; pageHeight=&quot;780&quot; math=&quot;0&quot; shadow=&quot;0&quot;&gt;&lt;root&gt;&lt;mxCell id=&quot;0&quot;/&gt;&lt;mxCell id=&quot;1&quot; parent=&quot;0&quot;/&gt;&lt;mxCell id=&quot;cf_group&quot; value=&quot;Cloudflare One (Zero Trust &amp;amp; WARP Clients)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F2;strokeColor=#F6821F;strokeWidth=2;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#B45309;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;30&quot; y=&quot;70&quot; width=&quot;510&quot; height=&quot;670&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;aws_group&quot; value=&quot;AWS Project (ap-southeast-2) — Multi-AZ VPC (AZ-1, AZ-2, AZ-3)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#232F3E;strokeWidth=2;verticalAlign=top;fontStyle=1;fontSize=14;fontColor=#232F3E;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;600&quot; y=&quot;70&quot; width=&quot;610&quot; height=&quot;670&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;c_row&quot; value=&quot;Laptop in Australia / RoW&amp;#xa;(Default WARP Profile — Split Tunnel Excludes Google Meet)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;60&quot; y=&quot;130&quot; width=&quot;280&quot; height=&quot;75&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;c_office&quot; value=&quot;Laptop in China Corporate Office&amp;#xa;(Source IP in @china_office_ips)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#EF4444;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;60&quot; y=&quot;245&quot; width=&quot;280&quot; height=&quot;75&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;c_roam&quot; value=&quot;Laptop Roaming in Mainland China&amp;#xa;(Source IP in @china_mainland_cidrs)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#F6821F;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;60&quot; y=&quot;365&quot; width=&quot;280&quot; height=&quot;85&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;cf_gw&quot; value=&quot;Cloudflare One Gateway ( tunnel )&amp;#xa;Routes Google Meet Inside WARP Tunnel&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#F6821F;strokeColor=#C2410C;fontColor=#FFFFFF;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;60&quot; y=&quot;525&quot; width=&quot;280&quot; height=&quot;75&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;gmeet&quot; value=&quot;Google Meet Servers&amp;#xa;(Unblocked &amp;amp; Low-Latency Media)&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#10B981;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;60&quot; y=&quot;640&quot; width=&quot;280&quot; height=&quot;65&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;eip&quot; value=&quot;Static Elastic IP (:443)&amp;#xa;Reassociated on Boot&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#FF9900;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;630&quot; y=&quot;245&quot; width=&quot;145&quot; height=&quot;75&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;asg&quot; value=&quot;Multi-AZ Auto Scaling Group (min=1, max=1) — Active EC2 t4g.nano&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9900;strokeWidth=2;verticalAlign=top;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;805&quot; y=&quot;120&quot; width=&quot;380&quot; height=&quot;440&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;nft&quot; value=&quot;Linux Kernel nftables Firewall (L3/L4)&amp;#xa;1. @china_office_ips -&amp;gt; REJECT (TCP RST)&amp;#xa;2. Rate Limit (30/min per IP)&amp;#xa;3. @china_mainland_cidrs -&amp;gt; ACCEPT&amp;#xa;4. Default Policy -&amp;gt; DROP&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#DC2626;strokeWidth=2;align=left;spacingLeft=10;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;830&quot; y=&quot;165&quot; width=&quot;330&quot; height=&quot;165&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;tls&quot; value=&quot;Hardened Userspace TLS Beacon (:443)&amp;#xa;- Presents Persistent Cert (SHA-256 Match)&amp;#xa;- GET / -&amp;gt; 200 OK (Client IP Only)&amp;#xa;- Unprivileged beacon User &amp;amp; Systemd Sandbox&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;align=left;spacingLeft=10;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;830&quot; y=&quot;375&quot; width=&quot;330&quot; height=&quot;155&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;ssm&quot; value=&quot;AWS SSM Parameter Store ($0)&amp;#xa;Persistent 10-Yr TLS Cert, Key &amp;amp; SHA-256&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;630&quot; y=&quot;605&quot; width=&quot;265&quot; height=&quot;85&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;mxCell id=&quot;apnic&quot; value=&quot;Daily China CIDR Sync (cron.daily)&amp;#xa;1. APNIC  2. ipdeny  3. GitHub&quot; style=&quot;rounded=1;whiteSpace=wrap;html=1;fillColor=#F3E8FF;strokeColor=#7C3AED;strokeWidth=2;fontStyle=1;&quot; vertex=&quot;1&quot; parent=&quot;1&quot;&gt;&lt;mxGeometry x=&quot;920&quot; y=&quot;605&quot; width=&quot;265&quot; height=&quot;85&quot; as=&quot;geometry&quot;/&gt;&lt;/mxCell&gt;&lt;/root&gt;&lt;/mxGraphModel&gt;&lt;/diagram&gt;&lt;/mxfile&gt;">
+  <defs>
+    <style>
+      .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+      .shadow { filter: drop-shadow(0px 3px 6px rgba(15, 23, 42, 0.08)); }
+    </style>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#DC2626"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#F6821F"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#7C3AED"/>
+    </marker>
+    <marker id="arrow-slate" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#475569"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1240" height="780" rx="12" fill="#FFFFFF"/>
+
+  <!-- Top Header Banner -->
+  <rect x="20" y="16" width="1200" height="44" rx="8" fill="#0F172A"/>
+  <circle cx="46" cy="38" r="10" fill="#F6821F"/>
+  <path d="M 41 40 C 41 36, 46 34, 49 37 C 52 35, 55 38, 53 41 Z" fill="#FFFFFF"/>
+  <text x="68" y="43" class="font-sans" font-size="16" font-weight="700" fill="#FFFFFF">Cloudflare One Managed Network Geo-Beacon Architecture — Mainland China Split-Tunnel Automation</text>
+  <text x="1200" y="43" text-anchor="end" class="font-mono" font-size="12" font-weight="600" fill="#FBAD41">~$8.09 / mo (Multi-AZ HA)</text>
+
+  <!-- ====================================================================== -->
+  <!-- LEFT CONTAINER: CLOUDFLARE ONE & USER LAPTOPS                          -->
+  <!-- ====================================================================== -->
+  <rect x="24" y="74" width="520" height="686" rx="10" fill="#FFFBF7" stroke="#F6821F" stroke-width="2"/>
+  <rect x="24" y="74" width="520" height="36" rx="10" fill="#F6821F"/>
+  <rect x="24" y="96" width="520" height="14" fill="#F6821F"/>
+  <!-- Cloudflare Cloud Icon -->
+  <path d="M 46 97 C 46 91, 52 88, 56 91 C 59 86, 67 87, 68 93 C 72 93, 74 96, 73 99 L 47 99 Z" fill="#FFFFFF"/>
+  <text x="84" y="97" class="font-sans" font-size="14" font-weight="700" fill="#FFFFFF">Cloudflare One — WARP Endpoints &amp; Zero Trust Edge</text>
+
+  <!-- 1. Laptop: Australia / Rest of World -->
+  <g class="shadow">
+    <rect x="44" y="128" width="310" height="84" rx="8" fill="#FFFFFF" stroke="#64748B" stroke-width="1.8"/>
+    <rect x="44" y="128" width="8" height="84" rx="4" fill="#64748B"/>
+    <!-- Laptop Icon -->
+    <rect x="64" y="144" width="28" height="18" rx="2" fill="none" stroke="#475569" stroke-width="2"/>
+    <path d="M 60 165 L 96 165" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- WARP Badge -->
+    <rect x="266" y="136" width="78" height="20" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="305" y="150" text-anchor="middle" class="font-sans" font-size="10" font-weight="700" fill="#334155">WARP Client</text>
+
+    <text x="102" y="152" class="font-sans" font-size="13" font-weight="700" fill="#0F172A">User in Australia / RoW</text>
+    <text x="102" y="170" class="font-sans" font-size="11" fill="#475569">Profile: <tspan font-weight="700" fill="#0F172A">Default (Split Tunnel)</tspan></text>
+    <text x="64" y="196" class="font-sans" font-size="11" fill="#059669" font-weight="600">✓ Google Meet bypasses tunnel (Direct to Google)</text>
+  </g>
+
+  <!-- 2. Laptop: China Corporate Office -->
+  <g class="shadow">
+    <rect x="44" y="232" width="310" height="84" rx="8" fill="#FFFFFF" stroke="#DC2626" stroke-width="1.8"/>
+    <rect x="44" y="232" width="8" height="84" rx="4" fill="#DC2626"/>
+    <!-- Office Building + Laptop Icon -->
+    <rect x="64" y="248" width="28" height="18" rx="2" fill="none" stroke="#DC2626" stroke-width="2"/>
+    <path d="M 60 269 L 96 269" stroke="#DC2626" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="266" y="240" width="78" height="20" rx="10" fill="#FEF2F2" stroke="#FECACA" stroke-width="1"/>
+    <text x="305" y="254" text-anchor="middle" class="font-sans" font-size="10" font-weight="700" fill="#DC2626">Office Egress</text>
+
+    <text x="102" y="256" class="font-sans" font-size="13" font-weight="700" fill="#0F172A">User in China Office</text>
+    <text x="102" y="274" class="font-mono" font-size="11" fill="#B91C1C">IP in @china_office_ips</text>
+    <text x="64" y="300" class="font-sans" font-size="11" fill="#475569" font-weight="600">→ Probe rejected (TCP RST); stays on Office Profile</text>
+  </g>
+
+  <!-- 3. Laptop: Roaming in Mainland China -->
+  <g class="shadow">
+    <rect x="44" y="336" width="310" height="106" rx="8" fill="#FFF7ED" stroke="#F6821F" stroke-width="2.2"/>
+    <rect x="44" y="336" width="8" height="106" rx="4" fill="#F6821F"/>
+    <!-- Laptop Icon -->
+    <rect x="64" y="352" width="28" height="18" rx="2" fill="none" stroke="#EA580C" stroke-width="2"/>
+    <path d="M 60 373 L 96 373" stroke="#EA580C" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="252" y="344" width="92" height="20" rx="10" fill="#F6821F"/>
+    <text x="298" y="358" text-anchor="middle" class="font-sans" font-size="10" font-weight="700" fill="#FFFFFF">China Roaming</text>
+
+    <text x="102" y="360" class="font-sans" font-size="13" font-weight="700" fill="#0F172A">User Roaming in China</text>
+    <text x="102" y="378" class="font-mono" font-size="11" fill="#C2410C">IP in @china_mainland_cidrs</text>
+    <text x="64" y="402" class="font-sans" font-size="11" fill="#059669" font-weight="700">1. TLS Probe Succeeds (SHA-256 Thumbprint Match)</text>
+    <text x="64" y="422" class="font-sans" font-size="11" fill="#C2410C" font-weight="700">2. Switches Profile → Tunnel Includes Google Meet</text>
+  </g>
+
+  <!-- Managed Network Check Callout Box -->
+  <rect x="372" y="344" width="156" height="90" rx="6" fill="#FFFFFF" stroke="#FBAD41" stroke-width="1.5" stroke-dasharray="4 2"/>
+  <text x="450" y="364" text-anchor="middle" class="font-sans" font-size="11" font-weight="700" fill="#B45309">Cloudflare Managed</text>
+  <text x="450" y="378" text-anchor="middle" class="font-sans" font-size="11" font-weight="700" fill="#B45309">Network TLS Probe</text>
+  <text x="450" y="396" text-anchor="middle" class="font-mono" font-size="10" fill="#475569">&lt;EIP&gt;:443</text>
+  <text x="450" y="412" text-anchor="middle" class="font-sans" font-size="10" fill="#059669" font-weight="600">Verifies Cert SHA-256</text>
+  <text x="450" y="426" text-anchor="middle" class="font-sans" font-size="9.5" fill="#64748B">(Ignores HTTP Status)</text>
+
+  <!-- 4. Cloudflare One Gateway (Zero Trust Tunnel) -->
+  <g class="shadow">
+    <rect x="44" y="492" width="310" height="86" rx="8" fill="#F6821F" stroke="#C2410C" stroke-width="2"/>
+    <!-- Cloudflare Shield/Gateway Icon -->
+    <path d="M 76 516 L 94 522 L 94 536 C 94 546, 85 553, 76 556 C 67 553, 58 546, 58 536 L 58 522 Z" fill="#FFFFFF" opacity="0.95"/>
+    <path d="M 71 536 L 75 540 L 83 531" fill="none" stroke="#F6821F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="108" y="526" class="font-sans" font-size="14" font-weight="700" fill="#FFFFFF">Cloudflare One Gateway</text>
+    <text x="108" y="545" class="font-sans" font-size="11" fill="#FFF7ED">Encrypted WARP Tunnel (MASQUE / WireGuard)</text>
+    <text x="108" y="563" class="font-sans" font-size="11" font-weight="600" fill="#FEF08A">Egresses Outside Mainland China</text>
+  </g>
+
+  <!-- Great Firewall Blocked Indicator (Direct Path) -->
+  <rect x="372" y="502" width="156" height="66" rx="6" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1.5"/>
+  <text x="450" y="523" text-anchor="middle" class="font-sans" font-size="11" font-weight="700" fill="#DC2626">✗ Great Firewall (GFW)</text>
+  <text x="450" y="540" text-anchor="middle" class="font-sans" font-size="10" fill="#991B1B">Blocks Direct Google Meet</text>
+  <text x="450" y="555" text-anchor="middle" class="font-sans" font-size="10" fill="#059669" font-weight="700">Bypassed via WARP Tunnel</text>
+
+  <!-- 5. Google Meet Servers -->
+  <g class="shadow">
+    <rect x="44" y="636" width="310" height="80" rx="8" fill="#ECFDF5" stroke="#10B981" stroke-width="2"/>
+    <!-- Video Camera Icon -->
+    <rect x="62" y="662" width="26" height="20" rx="3" fill="#10B981"/>
+    <polygon points="88,667 98,661 98,683 88,677" fill="#10B981"/>
+    <text x="110" y="669" class="font-sans" font-size="14" font-weight="700" fill="#065F46">Google Meet Media Servers</text>
+    <text x="110" y="688" class="font-sans" font-size="11" fill="#047857">• RoW / AU Users → Direct Split-Tunnel</text>
+    <text x="110" y="704" class="font-sans" font-size="11" fill="#047857">• China Roaming Users → Via Cloudflare Gateway</text>
+  </g>
+
+  <!-- Arrows inside Cloudflare Column -->
+  <!-- Roaming Laptop -> Cloudflare Gateway -->
+  <path d="M 199 442 L 199 488" fill="none" stroke="#F6821F" stroke-width="2.5" marker-end="url(#arrow-orange)"/>
+  <rect x="124" y="454" width="150" height="18" rx="4" fill="#FFF7ED"/>
+  <text x="199" y="467" text-anchor="middle" class="font-sans" font-size="10.5" font-weight="700" fill="#C2410C">Google Meet in WARP Tunnel</text>
+
+  <!-- Cloudflare Gateway -> Google Meet -->
+  <path d="M 199 578 L 199 632" fill="none" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <rect x="134" y="594" width="130" height="18" rx="4" fill="#ECFDF5"/>
+  <text x="199" y="607" text-anchor="middle" class="font-sans" font-size="10.5" font-weight="700" fill="#047857">Unblocked Media Stream</text>
+
+  <!-- ====================================================================== -->
+  <!-- RIGHT CONTAINER: AWS PROJECT (ap-southeast-2) MULTI-AZ VPC             -->
+  <!-- ====================================================================== -->
+  <rect x="596" y="74" width="620" height="686" rx="10" fill="#F8FAFC" stroke="#232F3E" stroke-width="2"/>
+  <rect x="596" y="74" width="620" height="36" rx="10" fill="#232F3E"/>
+  <rect x="596" y="96" width="620" height="14" fill="#232F3E"/>
+  <!-- AWS Orange Cube Badge -->
+  <rect x="614" y="83" width="20" height="18" rx="3" fill="#FF9900"/>
+  <text x="624" y="96" text-anchor="middle" class="font-sans" font-size="9" font-weight="800" fill="#232F3E">AWS</text>
+  <text x="644" y="97" class="font-sans" font-size="14" font-weight="700" fill="#FFFFFF">AWS Project (ap-southeast-2) — Multi-AZ Public VPC</text>
+
+  <!-- Elastic IP + Internet Gateway Box -->
+  <g class="shadow">
+    <rect x="616" y="232" width="154" height="90" rx="8" fill="#FFFBEB" stroke="#FF9900" stroke-width="2"/>
+    <circle cx="642" cy="256" r="11" fill="#FF9900"/>
+    <text x="642" y="260" text-anchor="middle" class="font-mono" font-size="10" font-weight="700" fill="#FFFFFF">IP</text>
+    <text x="660" y="256" class="font-sans" font-size="12.5" font-weight="700" fill="#0F172A">Static Elastic IP</text>
+    <text x="660" y="271" class="font-mono" font-size="11" font-weight="700" fill="#B45309">TCP Port 443</text>
+    <text x="626" y="294" class="font-sans" font-size="10.5" fill="#475569">Internet Gateway +</text>
+    <text x="626" y="309" class="font-sans" font-size="10.5" fill="#475569">Security Group (:443)</text>
+  </g>
+
+  <!-- Multi-AZ Auto Scaling Group Box -->
+  <rect x="794" y="124" width="402" height="476" rx="10" fill="#FFFFFF" stroke="#FF9900" stroke-width="2" stroke-dasharray="6 3"/>
+  <rect x="810" y="114" width="370" height="22" rx="6" fill="#FF9900"/>
+  <text x="995" y="129" text-anchor="middle" class="font-sans" font-size="11.5" font-weight="700" fill="#FFFFFF">Auto Scaling Group (min=1, max=1) Across 3 AZs (2a, 2b, 2c)</text>
+
+  <!-- Active EC2 Instance Container -->
+  <rect x="810" y="146" width="370" height="438" rx="8" fill="#F8FAFC" stroke="#334155" stroke-width="1.8"/>
+  <rect x="810" y="146" width="370" height="28" rx="8" fill="#334155"/>
+  <rect x="810" y="164" width="370" height="10" fill="#334155"/>
+  <text x="995" y="165" text-anchor="middle" class="font-sans" font-size="12" font-weight="700" fill="#FFFFFF">Active EC2 t4g.nano (Amazon Linux 2023 ARM64 — IMDSv2)</text>
+
+  <!-- Kernel Layer: nftables + sysctl -->
+  <g class="shadow">
+    <rect x="826" y="186" width="338" height="190" rx="8" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.8"/>
+    <rect x="826" y="186" width="338" height="26" rx="8" fill="#DC2626"/>
+    <rect x="826" y="202" width="338" height="10" fill="#DC2626"/>
+    <text x="995" y="204" text-anchor="middle" class="font-sans" font-size="11.5" font-weight="700" fill="#FFFFFF">1. Linux Kernel Network Firewall (nftables + sysctl)</text>
+
+    <!-- Rule Steps -->
+    <rect x="838" y="220" width="314" height="30" rx="5" fill="#FFFFFF" stroke="#FCA5A5" stroke-width="1"/>
+    <text x="848" y="239" class="font-mono" font-size="11" font-weight="700" fill="#B91C1C">1. @china_office_ips   → REJECT (TCP RST)</text>
+
+    <rect x="838" y="256" width="314" height="28" rx="5" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"/>
+    <text x="848" y="274" class="font-mono" font-size="11" font-weight="600" fill="#334155">2. Per-IP Rate Limit   → Max 30/min (Burst 15)</text>
+
+    <rect x="838" y="290" width="314" height="30" rx="5" fill="#ECFDF5" stroke="#6EE7B7" stroke-width="1.2"/>
+    <text x="848" y="309" class="font-mono" font-size="11" font-weight="700" fill="#047857">3. @china_mainland_cidrs → ACCEPT to :443</text>
+
+    <rect x="838" y="326" width="314" height="38" rx="5" fill="#FFF1F2" stroke="#FECDD3" stroke-width="1"/>
+    <text x="848" y="343" class="font-mono" font-size="11" font-weight="700" fill="#9F1239">4. Default Input Policy → DROP</text>
+    <text x="848" y="357" class="font-sans" font-size="10" fill="#881337">(SYN dropped before TCP/TLS handshake for RoW/AU)</text>
+  </g>
+
+  <!-- Arrow from nftables to Userspace TLS Server -->
+  <path d="M 995 376 L 995 404" fill="none" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <text x="1003" y="394" class="font-sans" font-size="10" font-weight="700" fill="#047857">Accepted CN Packets Only</text>
+
+  <!-- Userspace Layer: Hardened Python TLS Beacon -->
+  <g class="shadow">
+    <rect x="826" y="408" width="338" height="162" rx="8" fill="#ECFDF5" stroke="#059669" stroke-width="1.8"/>
+    <rect x="826" y="408" width="338" height="26" rx="8" fill="#059669"/>
+    <rect x="826" y="424" width="338" height="10" fill="#059669"/>
+    <text x="995" y="426" text-anchor="middle" class="font-sans" font-size="11.5" font-weight="700" fill="#FFFFFF">2. Hardened Userspace TLS Beacon (:443)</text>
+
+    <text x="840" y="452" class="font-sans" font-size="11" font-weight="700" fill="#064E3B">• Presents Persistent 10-Yr X.509 Certificate (SHA-256)</text>
+    <text x="840" y="471" class="font-sans" font-size="11" font-weight="700" fill="#064E3B">• Strict TLS 1.2/1.3 Only + 3.0s Handshake Timeout</text>
+    <text x="840" y="490" class="font-mono" font-size="11" font-weight="700" fill="#047857">• Only "GET /" Allowed → 200 OK (&lt;client_ip&gt;\n)</text>
+    <text x="840" y="509" class="font-sans" font-size="10.5" fill="#065F46">• Zero Header/Body Parsing; Strips Server Banners</text>
+    <text x="840" y="528" class="font-sans" font-size="10.5" fill="#065F46">• Unprivileged "beacon" User + Systemd Read-Only Sandbox</text>
+    <text x="840" y="547" class="font-sans" font-size="10.5" fill="#065F46">• Bounded Concurrency Semaphore (Max 32 Threads)</text>
+  </g>
+
+  <!-- Bottom AWS Support Services: SSM Parameter Store & Daily CIDR Sync -->
+  <g class="shadow">
+    <rect x="616" y="624" width="276" height="114" rx="8" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.8"/>
+    <rect x="616" y="624" width="276" height="26" rx="8" fill="#2563EB"/>
+    <rect x="616" y="640" width="276" height="10" fill="#2563EB"/>
+    <text x="754" y="642" text-anchor="middle" class="font-sans" font-size="11.5" font-weight="700" fill="#FFFFFF">AWS SSM Parameter Store ($0)</text>
+    <text x="630" y="668" class="font-mono" font-size="10.5" font-weight="700" fill="#1E3A8A">/cf-china-beacon/tls/{cert,key,sha256}</text>
+    <text x="630" y="688" class="font-sans" font-size="10.5" fill="#1E40AF">• Persists TLS keypair across ASG failovers</text>
+    <text x="630" y="705" class="font-sans" font-size="10.5" fill="#1E40AF">• Preserves SHA-256 thumbprint in Cloudflare One</text>
+    <text x="630" y="722" class="font-sans" font-size="10.5" fill="#1E40AF">• Zero private keys stored in Terraform state</text>
+  </g>
+
+  <g class="shadow">
+    <rect x="912" y="624" width="284" height="114" rx="8" fill="#F3E8FF" stroke="#7C3AED" stroke-width="1.8"/>
+    <rect x="912" y="624" width="284" height="26" rx="8" fill="#7C3AED"/>
+    <rect x="912" y="640" width="284" height="10" fill="#7C3AED"/>
+    <text x="1054" y="642" text-anchor="middle" class="font-sans" font-size="11.5" font-weight="700" fill="#FFFFFF">3-Tier China CIDR Sync (cron.daily)</text>
+    <text x="926" y="668" class="font-sans" font-size="10.5" font-weight="700" fill="#4C1D95">1. Primary: APNIC Official Registry (Python)</text>
+    <text x="926" y="686" class="font-sans" font-size="10.5" font-weight="600" fill="#5B21B6">2. Secondary: ipdeny.com Aggregated Zone</text>
+    <text x="926" y="704" class="font-sans" font-size="10.5" font-weight="600" fill="#5B21B6">3. Tertiary: GitHub (mayaxcn/china-ip-list)</text>
+    <text x="926" y="722" class="font-sans" font-size="10.5" fill="#6D28D9">• Atomic reload into @china_mainland_cidrs</text>
+  </g>
+
+  <!-- ====================================================================== -->
+  <!-- CROSS-BOUNDARY PACKET FLOW ARROWS                                      -->
+  <!-- ====================================================================== -->
+  <!-- 1. Australia / RoW Probe -> EIP (Dropped) -->
+  <path d="M 354 170 L 566 170 L 566 255 L 612 255" fill="none" stroke="#DC2626" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow-red)"/>
+  <rect x="372" y="152" width="166" height="22" rx="4" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1"/>
+  <text x="455" y="167" text-anchor="middle" class="font-sans" font-size="10.5" font-weight="700" fill="#DC2626">✗ Probe Dropped (No Handshake)</text>
+
+  <!-- 2. China Office Probe -> EIP (Rejected TCP RST) -->
+  <path d="M 354 274 L 612 274" fill="none" stroke="#DC2626" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow-red)"/>
+  <rect x="372" y="256" width="166" height="22" rx="4" fill="#FEF2F2" stroke="#FCA5A5" stroke-width="1"/>
+  <text x="455" y="271" text-anchor="middle" class="font-sans" font-size="10.5" font-weight="700" fill="#DC2626">✗ Rejected (TCP RST in &lt;5ms)</text>
+
+  <!-- 3. China Roaming Probe -> EIP (Accepted & TLS Match) -->
+  <path d="M 354 338 L 566 338 L 566 295 L 612 295" fill="none" stroke="#059669" stroke-width="2.8" marker-end="url(#arrow-green)"/>
+
+  <!-- EIP -> Kernel nftables -->
+  <path d="M 770 277 L 822 277" fill="none" stroke="#334155" stroke-width="2.5" marker-end="url(#arrow-slate)"/>
+
+  <!-- Boot EIP Reassociation (EC2 -> EIP) -->
+  <path d="M 810 160 L 693 160 L 693 228" fill="none" stroke="#FF9900" stroke-width="1.8" stroke-dasharray="4 3" marker-end="url(#arrow-orange)"/>
+  <rect x="634" y="142" width="158" height="20" rx="4" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1"/>
+  <text x="713" y="156" text-anchor="middle" class="font-sans" font-size="10" font-weight="700" fill="#B45309">Boot: ec2:AssociateAddress</text>
+
+  <!-- SSM Parameter Store <-> TLS Beacon -->
+  <path d="M 754 624 L 754 510 L 822 510" fill="none" stroke="#2563EB" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrow-blue)"/>
+  <rect x="650" y="545" width="142" height="20" rx="4" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1"/>
+  <text x="721" y="559" text-anchor="middle" class="font-sans" font-size="10" font-weight="700" fill="#1D4ED8">Load / Persist Cert &amp; Key</text>
+
+  <!-- 3-Tier China CIDR Sync -> nftables -->
+  <path d="M 1175 624 L 1175 290 L 1166 290" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrow-purple)"/>
+</svg>
